@@ -748,3 +748,130 @@ def apply_clean(scan_result):
     hidden = 0
     protected = 0
     if config.plugins.kidssafebouquets.strict_hide.value:
+        # Reuse the precomputed global list from Preview/scan. Service refs stay
+        # valid even after their bouquet entries have been removed.
+        try:
+            hidden, protected, warnings = strict_hide(scan_result.get("global_services", []))
+            failures.extend(warnings)
+        except Exception as err:
+            failures.append("Strict Kids Mode: %s" % err)
+
+    try:
+        eDVBDB.getInstance().reloadBouquets()
+    except Exception as err:
+        failures.append("Final bouquet reload: %s" % err)
+    if config.plugins.kidssafebouquets.strict_hide.value:
+        apply_hidden_flags(read_terms(HIDDEN_REFS_FILE))
+    return (removed_bouquets, removed_sections, removed_section_services,
+            removed_channels, hidden, protected, failures)
+
+def format_scan(result, title="Preview"):
+    lines = ["%s - %s v%s" % (title, PLUGIN_NAME, PLUGIN_VERSION), ""]
+    lines.append("Adult bouquets found: %d" % len(result["bouquets"]))
+    for item in result["bouquets"]:
+        lines.append("  [BOUQUET] %s  (%d services; rule: %s)" % (item["name"], item["count"], item["rule"]))
+    lines.append("")
+    lines.append("Adult sections found (FULL SECTION WILL BE REMOVED): %d" % len(result.get("sections", [])))
+    for item in result.get("sections", []):
+        lines.append("  [SECTION] %s -> %s  (%d services; rule: %s)" % (
+            item["bouquet_name"], item["title"], item["count"], item["rule"]))
+    lines.append("")
+    lines.append("Adult channels found outside those sections: %d" % len(result["channels"]))
+    for item in result["channels"]:
+        lines.append("  %s  ->  %s  (rule: %s)" % (item["bouquet_name"], item["service_name"], item["rule"]))
+    lines.append("")
+    lines.append("Adult services found in global ALL list: %d" % len(result["global_services"]))
+    for item in result["global_services"]:
+        lines.append("  [ALL] %s  (rule: %s)" % (item["service_name"], item["rule"]))
+    if result["errors"]:
+        lines.append("")
+        lines.append("Warnings:")
+        for err in result["errors"]:
+            lines.append("  - %s" % err)
+    if not result["bouquets"] and not result.get("sections") and not result["channels"] and not result["global_services"]:
+        lines.extend(["", "No matching adult bouquets/sections/channels were detected."])
+    return "\n".join(lines)
+
+
+class KidsSafeResults(Screen):
+    skin = """
+        <screen name="KidsSafeResults" position="center,center" size="1120,630" title="KidsSafe Bouquets" backgroundColor="#101820">
+            <widget name="header" position="25,18" size="1070,44" font="Regular;30" foregroundColor="#F5F7FA" backgroundColor="#101820" />
+            <widget name="text" position="25,78" size="1070,470" font="Regular;23" scrollbarMode="showOnDemand" foregroundColor="#E6EAF0" backgroundColor="#101820" />
+            <widget source="key_red" render="Label" position="25,570" size="240,40" font="Regular;24" foregroundColor="#FF4040" backgroundColor="#101820" />
+        </screen>
+    """
+
+    def __init__(self, session, text, header="KidsSafe Bouquets"):
+        Screen.__init__(self, session)
+        self["header"] = Label(header)
+        self["text"] = ScrollLabel(text)
+        self["key_red"] = StaticText("RED  Close")
+        self["actions"] = ActionMap(["OkCancelActions", "DirectionActions", "ColorActions"], {
+            "cancel": self.close, "ok": self.close, "red": self.close,
+            "up": self["text"].pageUp, "down": self["text"].pageDown,
+            "left": self["text"].pageUp, "right": self["text"].pageDown,
+        }, -1)
+
+
+class KidsSafeSettings(Screen, ConfigListScreen):
+    skin = """
+        <screen name="KidsSafeSettings" position="center,center" size="1040,560" title="KidsSafe Bouquets - Settings" backgroundColor="#08111C">
+            <widget name="header" position="35,28" size="970,50" font="Regular;34" foregroundColor="#FFFFFF" backgroundColor="#08111C" />
+            <widget name="sub" position="35,78" size="970,34" font="Regular;22" foregroundColor="#55A8FF" backgroundColor="#08111C" />
+            <widget name="config" position="35,145" size="970,270" scrollbarMode="showOnDemand" />
+            <widget source="key_red" render="Label" position="45,465" size="360,46" font="Regular;25" foregroundColor="#FF5050" backgroundColor="#08111C" />
+            <widget source="key_green" render="Label" position="440,465" size="360,46" font="Regular;25" foregroundColor="#4FE066" backgroundColor="#08111C" />
+            <widget name="hint" position="35,520" size="970,28" font="Regular;19" foregroundColor="#B6C7D8" backgroundColor="#08111C" />
+        </screen>
+    """
+
+    def __init__(self, session):
+        Screen.__init__(self, session)
+        entries = [
+            getConfigListEntry("Strict Kids Mode: hide matches from ALL / Satellites / Providers", config.plugins.kidssafebouquets.strict_hide),
+            getConfigListEntry("Also add matches to native parental blacklist", config.plugins.kidssafebouquets.use_parental_control),
+            getConfigListEntry("Create backup before cleaning", config.plugins.kidssafebouquets.make_backup),
+        ]
+        ConfigListScreen.__init__(self, entries, session=session)
+        self["header"] = Label("KidsSafe Bouquets v%s" % PLUGIN_VERSION)
+        self["sub"] = Label("Simple settings - the adult filter itself is always enabled")
+        self["key_red"] = StaticText("RED   Cancel")
+        self["key_green"] = StaticText("GREEN   Save")
+        self["hint"] = Label("Adult / Erotic / XXX bouquets, sections and matching channels are always filtered aggressively.")
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions"], {
+            "cancel": self.keyCancel, "red": self.keyCancel, "green": self.saveSettings,
+        }, -1)
+
+    def saveSettings(self):
+        for entry in self["config"].list:
+            entry[1].save()
+        configfile.save()
+        self.close(True)
+
+
+class KidsSafeMain(Screen):
+    skin = """
+        <screen name="KidsSafeMain" position="center,center" size="1200,650" title="KidsSafe Bouquets" backgroundColor="#06101B">
+            <ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/KidsSafeBouquets/main_bg.png" position="0,0" size="1200,650" zPosition="-5" alphatest="blend" />
+            <ePixmap pixmap="/usr/lib/enigma2/python/Plugins/Extensions/KidsSafeBouquets/logo.png" position="28,24" size="150,112" alphatest="blend" />
+            <widget name="title" position="205,24" size="570,54" font="Regular;42" foregroundColor="#FFFFFF" transparent="1" />
+            <widget name="subtitle" position="205,80" size="570,38" font="Regular;27" foregroundColor="#58AFFF" transparent="1" />
+            <widget name="list" position="32,175" size="570,300" font="Regular;29" itemHeight="56" scrollbarMode="showNever" transparent="1" />
+            <widget name="panelTitle" position="675,115" size="470,45" font="Regular;33" foregroundColor="#FFFFFF" transparent="1" />
+            <widget name="version" position="675,162" size="470,38" font="Regular;28" foregroundColor="#58AFFF" transparent="1" />
+            <widget name="panelText" position="675,214" size="470,245" font="Regular;22" foregroundColor="#E3EDF7" transparent="1" />
+            <widget name="credit" position="695,482" size="430,70" font="Regular;20" halign="center" valign="center" foregroundColor="#EAF2FA" transparent="1" />
+            <widget name="status" position="40,555" size="1120,32" font="Regular;20" foregroundColor="#BFD0E0" transparent="1" />
+            <widget source="key_red" render="Label" position="38,604" size="245,36" font="Regular;23" foregroundColor="#FFFFFF" transparent="1" />
+            <widget source="key_green" render="Label" position="325,604" size="245,36" font="Regular;23" foregroundColor="#FFFFFF" transparent="1" />
+            <widget source="key_yellow" render="Label" position="610,604" size="245,36" font="Regular;23" foregroundColor="#FFFFFF" transparent="1" />
+            <widget source="key_blue" render="Label" position="895,604" size="245,36" font="Regular;23" foregroundColor="#FFFFFF" transparent="1" />
+        </screen>
+    """
+
+    SCAN_WARNING = (
+        "KidsSafe must scan all bouquets and, in Strict Kids Mode, the global TV service list.\n\n"
+        "Large settings can take some time and Enigma2 may react slowly during the scan. "
+        "Please wait until the scan finishes and do not restart the GUI.\n\nContinue?"
+    )
