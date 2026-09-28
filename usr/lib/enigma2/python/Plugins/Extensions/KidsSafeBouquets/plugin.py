@@ -448,3 +448,303 @@ def scan_bouquets():
     return result
 
 
+def scan_all_services():
+    """Scan the same global TV service namespace used by Enigma2's All view."""
+    service_center = eServiceCenter.getInstance()
+    result = {"services": [], "errors": []}
+    _, channel_words, whitelist = build_rule_sets()
+    root = all_tv_root()
+    try:
+        listing = service_center.list(root)
+        services = listing.getContent("R", True) if listing else []
+    except Exception as err:
+        result["errors"].append("Could not scan All services: %s" % err)
+        return result
+
+    seen = set()
+    for sref in services or []:
+        if is_marker(sref):
+            continue
+        sname = service_name(service_center, sref)
+        white, _ = contains_any(sname, whitelist)
+        if white:
+            continue
+        bad, matched = contains_any(sname, channel_words)
+        if not bad:
+            continue
+        compare = compare_ref_string(sref)
+        if compare in seen:
+            continue
+        seen.add(compare)
+        result["services"].append({
+            "service_ref": ref_string(sref),
+            "compare_ref": compare,
+            "service_name": sname,
+            "rule": matched,
+        })
+    return result
+
+
+def services_from_adult_containers(bouquets, sections):
+    """Return every service inside a matched adult bouquet/section for global hiding.
+
+    This is intentionally stronger than name matching: a harmless-looking channel name
+    inside an Adult/Erotic/XXX section is still treated as adult content.
+    """
+    service_center = eServiceCenter.getInstance()
+    result = []
+    seen = set()
+    containers = []
+    for item in bouquets:
+        containers.append((item.get("name", "adult bouquet"), item.get("rule", "container"), item.get("service_refs", [])))
+    for item in sections:
+        containers.append((item.get("title", "adult section"), item.get("rule", "container"), item.get("service_refs", [])))
+
+    for title, rule, refs in containers:
+        for value in refs:
+            try:
+                ref = eServiceReference(value)
+                compare = compare_ref_string(ref)
+            except Exception:
+                compare = value
+                ref = None
+            if not compare or compare in seen:
+                continue
+            seen.add(compare)
+            name = service_name(service_center, ref) if ref is not None else value
+            result.append({
+                "service_ref": value,
+                "compare_ref": compare,
+                "service_name": name,
+                "rule": "section/bouquet: %s" % rule,
+                "container": title,
+            })
+    return result
+
+
+def merge_global_services(*groups):
+    result = []
+    seen = set()
+    for group in groups:
+        for item in group or []:
+            key = item.get("compare_ref") or item.get("service_ref")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            result.append(item)
+    return result
+
+
+def scan_everything():
+    bouquets = scan_bouquets()
+    if config.plugins.kidssafebouquets.strict_hide.value:
+        global_scan = scan_all_services()
+        container_services = services_from_adult_containers(bouquets["bouquets"], bouquets["sections"])
+        global_services = merge_global_services(global_scan["services"], container_services)
+    else:
+        global_scan = {"services": [], "errors": []}
+        global_services = []
+    return {
+        "bouquets": bouquets["bouquets"],
+        "sections": bouquets["sections"],
+        "channels": bouquets["channels"],
+        "global_services": global_services,
+        "errors": bouquets["errors"] + global_scan["errors"],
+    }
+
+
+def create_backup():
+    if not os.path.isdir(BACKUP_DIR):
+        os.makedirs(BACKUP_DIR)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    target = os.path.join(BACKUP_DIR, "kidssafe-%s.tar.gz" % stamp)
+    patterns = [
+        "bouquets.tv", "bouquets.radio", "userbouquet.*.tv", "userbouquet.*.radio",
+        "kidssafe_hidden_refs.txt",
+        "blacklist",
+    ]
+    files = []
+    for pattern in patterns:
+        files.extend(glob.glob(os.path.join(ENIGMA2_DIR, pattern)))
+    with tarfile.open(target, "w:gz") as archive:
+        for path in sorted(set(files)):
+            if os.path.isfile(path):
+                archive.add(path, arcname=os.path.basename(path))
+    return target
+
+
+def latest_backup():
+    files = sorted(glob.glob(os.path.join(BACKUP_DIR, "kidssafe-*.tar.gz")), reverse=True)
+    return files[0] if files else None
+
+
+def remove_hidden_flags(refs):
+    db = eDVBDB.getInstance()
+    for value in refs:
+        try:
+            db.removeFlag(eServiceReference(value), 2)
+        except Exception:
+            pass
+
+
+def apply_hidden_flags(refs):
+    db = eDVBDB.getInstance()
+    count = 0
+    for value in refs:
+        try:
+            db.addFlag(eServiceReference(value), 2)
+            count += 1
+        except Exception as err:
+            log("Could not hide %s: %s" % (value, err))
+    try:
+        from Components.ServiceList import refreshServiceList
+        refreshServiceList()
+    except Exception:
+        pass
+    return count
+
+
+def restore_backup(path):
+    if not path or not os.path.isfile(path):
+        raise IOError("Backup not found")
+    old_refs = read_terms(HIDDEN_REFS_FILE)
+    remove_hidden_flags(old_refs)
+    with tarfile.open(path, "r:gz") as archive:
+        members = {os.path.basename(m.name): m for m in archive.getmembers() if m.isfile()}
+        for name, member in members.items():
+            if not name or name != member.name:
+                continue
+            source = archive.extractfile(member)
+            if source is None:
+                continue
+            target = os.path.join(ENIGMA2_DIR, name)
+            with open(target, "wb") as out:
+                out.write(source.read())
+    eDVBDB.getInstance().reloadBouquets()
+    apply_hidden_flags(read_terms(HIDDEN_REFS_FILE))
+
+
+def protect_with_native_parental_control(compare_refs):
+    protected = 0
+    warnings = []
+    if not config.plugins.kidssafebouquets.use_parental_control.value:
+        return protected, warnings
+    try:
+        from Components.ParentalControl import parentalControl
+        # Do not change the user's PIN/settings. If parental control is configured,
+        # also add services to its blacklist. KidsSafe's own hide flag works anyway.
+        for value in compare_refs:
+            try:
+                parentalControl.protectService(value)
+                protected += 1
+            except Exception as err:
+                warnings.append("Parental control %s: %s" % (value, err))
+        try:
+            parentalControl.save()
+        except Exception as err:
+            warnings.append("Could not save parental-control blacklist: %s" % err)
+    except Exception as err:
+        warnings.append("Native parental control unavailable: %s" % err)
+    return protected, warnings
+
+
+def strict_hide(global_services):
+    new_refs = []
+    compare_refs = []
+    for item in global_services:
+        new_refs.append(item["service_ref"])
+        compare_refs.append(item["compare_ref"])
+
+    old_refs = read_terms(HIDDEN_REFS_FILE)
+    # Unhide stale refs from previous settings before applying the new scan.
+    remove_hidden_flags([x for x in old_refs if x not in new_refs])
+    write_terms(HIDDEN_REFS_FILE, new_refs)
+    hidden = apply_hidden_flags(new_refs)
+    protected, warnings = protect_with_native_parental_control(compare_refs)
+    return hidden, protected, warnings
+
+
+def apply_clean(scan_result):
+    """Apply a scan result without doing expensive full rescans.
+
+    V1.3 intentionally reuses the already computed scan. Adult sections are
+    removed first, then individual channel matches outside those sections,
+    then the precomputed global hide list is applied. This makes Clean much
+    faster after Preview and avoids scanning ALL services several times.
+    """
+    service_center = eServiceCenter.getInstance()
+    removed_bouquets = 0
+    removed_sections = 0
+    removed_section_services = 0
+    removed_channels = 0
+    failures = []
+
+    removed_bouquet_refs = set()
+    if scan_result["bouquets"]:
+        try:
+            root_mutable = service_center.list(bouquet_root()).startEdit()
+        except Exception:
+            root_mutable = None
+        if root_mutable:
+            for item in scan_result["bouquets"]:
+                try:
+                    rc = root_mutable.removeService(eServiceReference(item["ref"]))
+                    if rc == 0:
+                        removed_bouquets += 1
+                        removed_bouquet_refs.add(item["ref"])
+                    else:
+                        failures.append("Bouquet: %s" % item["name"])
+                except Exception as err:
+                    failures.append("Bouquet %s: %s" % (item["name"], err))
+            try:
+                root_mutable.flushChanges()
+            except Exception as err:
+                failures.append("Saving bouquets.tv: %s" % err)
+        else:
+            failures.append("bouquets.tv is not editable")
+
+    rs, rss, section_failures = remove_sections_from_files(
+        scan_result.get("sections", []), skip_bouquet_refs=removed_bouquet_refs
+    )
+    removed_sections += rs
+    removed_section_services += rss
+    failures.extend(section_failures)
+
+    try:
+        eDVBDB.getInstance().reloadBouquets()
+    except Exception as err:
+        failures.append("Reload after section cleanup: %s" % err)
+
+    # V1.3: use the original channel list. scan_bouquets() already excludes
+    # individual matches that are inside a section scheduled for full removal.
+    grouped = {}
+    for item in scan_result.get("channels", []):
+        if item.get("bouquet_ref") in removed_bouquet_refs:
+            continue
+        grouped.setdefault(item["bouquet_ref"], []).append(item)
+
+    for bref, items in grouped.items():
+        try:
+            mutable = service_center.list(eServiceReference(bref)).startEdit()
+        except Exception:
+            mutable = None
+        if not mutable:
+            failures.append("Not editable: %s" % items[0]["bouquet_name"])
+            continue
+        for item in items:
+            try:
+                rc = mutable.removeService(eServiceReference(item["service_ref"]))
+                if rc == 0:
+                    removed_channels += 1
+                else:
+                    failures.append("Channel: %s" % item["service_name"])
+            except Exception as err:
+                failures.append("Channel %s: %s" % (item["service_name"], err))
+        try:
+            mutable.flushChanges()
+        except Exception as err:
+            failures.append("Saving %s: %s" % (items[0]["bouquet_name"], err))
+
+    hidden = 0
+    protected = 0
+    if config.plugins.kidssafebouquets.strict_hide.value:
