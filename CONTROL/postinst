@@ -1,0 +1,4 @@
+#!/bin/sh
+PLUGIN_DIR=/usr/lib/enigma2/python/Plugins/Extensions/KidsSafeBouquets
+rm -rf "$PLUGIN_DIR/__pycache__" 2>/dev/null || true
+exit 0
