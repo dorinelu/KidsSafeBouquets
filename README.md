@@ -6,7 +6,7 @@ The plugin was created from a very practical problem: updated Enigma2 settings a
 
 ## Current version
 
-**v1.5**
+**v1.6**
 
 Designed for **OpenATV**, **OpenBH** and similar Enigma2 images.
 
@@ -62,12 +62,12 @@ Examples include:
 Copy the package to `/tmp` on the receiver and install it with:
 
 ```sh
-opkg install /tmp/enigma2-plugin-extensions-kidssafebouquets_1.5-r0_all.ipk
+opkg install /tmp/enigma2-plugin-extensions-kidssafebouquets_1.6-r0_all.ipk
 ```
 
 Then restart the Enigma2 GUI.
 
-A fresh installation can install v1.5 directly. Earlier versions are not required.
+A fresh installation can install v1.6 directly. Earlier versions are not required.
 
 ### Manual source installation
 
@@ -130,3 +130,21 @@ Please open a GitHub issue with the exact category/channel name and, if possible
 **Plugin done by dorinelu with a lot of help from GPT-5.6 Sol.**
 
 Created for the Enigma2 community and for families who want current channel settings without manually cleaning adult content after every update.
+
+
+## Interface languages
+
+KidsSafe Bouquets v1.6 adds a gettext-based multilingual interface. Initial UI languages:
+
+English, German, Romanian, Italian, Spanish, French, Dutch, Polish, Portuguese, Turkish, Russian and Arabic.
+
+The plugin follows the Enigma2 system language and falls back to English.
+
+## About / DG Labs
+
+The About screen now uses the same project identity as EPG Translator NG:
+
+**Created by Dorinelu**  
+with AI assistance by ChatGPT
+
+**DG Labs — Plugins • Tools • Solutions**
