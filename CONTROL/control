@@ -1,8 +1,8 @@
 Package: enigma2-plugin-extensions-kidssafebouquets
-Version: 1.5-r0
+Version: 1.6-r0
 Architecture: all
 Maintainer: dorinelu
 Section: extra
 Priority: optional
 Depends: enigma2
-Description: Enigma2 family-safety bouquet cleaner. V1.5 removes custom list editors for stability, keeps aggressive multilingual full-section cleaning and Strict Kids Mode, and adds a redesigned TV+shield interface.
+Description: Enigma2 family-safety bouquet cleaner. V1.6 adds a multilingual gettext interface and DG Labs About screen while keeping aggressive multilingual full-section cleaning and Strict Kids Mode.
