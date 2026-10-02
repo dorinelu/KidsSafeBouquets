@@ -21,8 +21,10 @@ from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
 
+from . import _
+
 PLUGIN_NAME = "KidsSafe Bouquets"
-PLUGIN_VERSION = "1.5"
+PLUGIN_VERSION = "1.6"
 ENIGMA2_DIR = "/etc/enigma2"
 CUSTOM_BLACKLIST = os.path.join(ENIGMA2_DIR, "kidssafe_blacklist.txt")
 CUSTOM_WHITELIST = os.path.join(ENIGMA2_DIR, "kidssafe_whitelist.txt")
@@ -767,29 +769,29 @@ def apply_clean(scan_result):
 
 def format_scan(result, title="Preview"):
     lines = ["%s - %s v%s" % (title, PLUGIN_NAME, PLUGIN_VERSION), ""]
-    lines.append("Adult bouquets found: %d" % len(result["bouquets"]))
+    lines.append(_("Adult bouquets found: %d") % len(result["bouquets"]))
     for item in result["bouquets"]:
         lines.append("  [BOUQUET] %s  (%d services; rule: %s)" % (item["name"], item["count"], item["rule"]))
     lines.append("")
-    lines.append("Adult sections found (FULL SECTION WILL BE REMOVED): %d" % len(result.get("sections", [])))
+    lines.append(_("Adult sections found (FULL SECTION WILL BE REMOVED): %d") % len(result.get("sections", [])))
     for item in result.get("sections", []):
         lines.append("  [SECTION] %s -> %s  (%d services; rule: %s)" % (
             item["bouquet_name"], item["title"], item["count"], item["rule"]))
     lines.append("")
-    lines.append("Adult channels found outside those sections: %d" % len(result["channels"]))
+    lines.append(_("Adult channels found outside those sections: %d") % len(result["channels"]))
     for item in result["channels"]:
         lines.append("  %s  ->  %s  (rule: %s)" % (item["bouquet_name"], item["service_name"], item["rule"]))
     lines.append("")
-    lines.append("Adult services found in global ALL list: %d" % len(result["global_services"]))
+    lines.append(_("Adult services found in global ALL list: %d") % len(result["global_services"]))
     for item in result["global_services"]:
         lines.append("  [ALL] %s  (rule: %s)" % (item["service_name"], item["rule"]))
     if result["errors"]:
         lines.append("")
-        lines.append("Warnings:")
+        lines.append(_(_("Warnings:")))
         for err in result["errors"]:
             lines.append("  - %s" % err)
     if not result["bouquets"] and not result.get("sections") and not result["channels"] and not result["global_services"]:
-        lines.extend(["", "No matching adult bouquets/sections/channels were detected."])
+        lines.extend(["", _("No matching adult bouquets/sections/channels were detected.")])
     return "\n".join(lines)
 
 
@@ -806,7 +808,7 @@ class KidsSafeResults(Screen):
         Screen.__init__(self, session)
         self["header"] = Label(header)
         self["text"] = ScrollLabel(text)
-        self["key_red"] = StaticText("RED  Close")
+        self["key_red"] = StaticText(_("RED  Close"))
         self["actions"] = ActionMap(["OkCancelActions", "DirectionActions", "ColorActions"], {
             "cancel": self.close, "ok": self.close, "red": self.close,
             "up": self["text"].pageUp, "down": self["text"].pageDown,
@@ -829,16 +831,16 @@ class KidsSafeSettings(Screen, ConfigListScreen):
     def __init__(self, session):
         Screen.__init__(self, session)
         entries = [
-            getConfigListEntry("Strict Kids Mode: hide matches from ALL / Satellites / Providers", config.plugins.kidssafebouquets.strict_hide),
-            getConfigListEntry("Also add matches to native parental blacklist", config.plugins.kidssafebouquets.use_parental_control),
-            getConfigListEntry("Create backup before cleaning", config.plugins.kidssafebouquets.make_backup),
+            getConfigListEntry(_("Strict Kids Mode: hide matches from ALL / Satellites / Providers"), config.plugins.kidssafebouquets.strict_hide),
+            getConfigListEntry(_("Also add matches to native parental blacklist"), config.plugins.kidssafebouquets.use_parental_control),
+            getConfigListEntry(_("Create backup before cleaning"), config.plugins.kidssafebouquets.make_backup),
         ]
         ConfigListScreen.__init__(self, entries, session=session)
-        self["header"] = Label("KidsSafe Bouquets v%s" % PLUGIN_VERSION)
-        self["sub"] = Label("Simple settings - the adult filter itself is always enabled")
-        self["key_red"] = StaticText("RED   Cancel")
-        self["key_green"] = StaticText("GREEN   Save")
-        self["hint"] = Label("Adult / Erotic / XXX bouquets, sections and matching channels are always filtered aggressively.")
+        self["header"] = Label(_("KidsSafe Bouquets v%s") % PLUGIN_VERSION)
+        self["sub"] = Label(_("Simple settings - the adult filter itself is always enabled"))
+        self["key_red"] = StaticText(_("RED   Cancel"))
+        self["key_green"] = StaticText(_("GREEN   Save"))
+        self["hint"] = Label(_("Adult / Erotic / XXX bouquets, sections and matching channels are always filtered aggressively."))
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions"], {
             "cancel": self.keyCancel, "red": self.keyCancel, "green": self.saveSettings,
         }, -1)
@@ -870,7 +872,7 @@ class KidsSafeMain(Screen):
         </screen>
     """
 
-    SCAN_WARNING = (
+    SCAN_WARNING = _(
         "KidsSafe must scan all bouquets and, in Strict Kids Mode, the global TV service list.\n\n"
         "Large settings can take some time and Enigma2 may react slowly during the scan. "
         "Please wait until the scan finishes and do not restart the GUI.\n\nContinue?"
@@ -880,18 +882,18 @@ class KidsSafeMain(Screen):
         self.last_scan = None
         self.last_scan_fingerprint = None
         self["title"] = Label("KidsSafe Bouquets")
-        self["subtitle"] = Label("A safer TV for your family")
+        self["subtitle"] = Label(_("A safer TV for your family"))
         self.menu = [
-            ("1   Clean now (Strict Kids Mode)", "clean"),
-            ("2   Preview scan", "preview"),
-            ("3   Settings", "settings"),
-            ("4   Restore last backup", "restore"),
-            ("5   About", "about"),
+            (_("1   Clean now (Strict Kids Mode)"), "clean"),
+            (_("2   Preview scan"), "preview"),
+            (_("3   Settings"), "settings"),
+            (_("4   Restore last backup"), "restore"),
+            (_("5   About"), "about"),
         ]
         self["list"] = MenuList([x[0] for x in self.menu])
         self["panelTitle"] = Label("KidsSafe Bouquets")
-        self["version"] = Label("Version %s" % PLUGIN_VERSION)
-        self["panelText"] = Label(
+        self["version"] = Label(_("Version %s") % PLUGIN_VERSION)
+        self["panelText"] = Label(_(
             "Aggressive family-safety cleaning:\n\n"
             "• removes Adult / Erotic / XXX categories in many languages\n"
             "• deletes the complete section and every channel inside it\n"
@@ -899,13 +901,13 @@ class KidsSafeMain(Screen):
             "• can hide matches from All / Satellites / Providers\n"
             "• backup and restore included\n\n"
             "If in doubt, KidsSafe removes it."
-        )
-        self["credit"] = Label("Plugin done by dorinelu\nwith a lot of help from GBT5.6 SOL")
-        self["key_red"] = StaticText("Close")
-        self["key_green"] = StaticText("Clean")
-        self["key_yellow"] = StaticText("Preview")
-        self["key_blue"] = StaticText("Settings")
-        self["status"] = Label("Ready. First scan can take a while on very large settings.")
+        ))
+        self["credit"] = Label(_("Created by Dorinelu\nwith AI assistance by ChatGPT\nDG Labs"))
+        self["key_red"] = StaticText(_("Close"))
+        self["key_green"] = StaticText(_("Clean"))
+        self["key_yellow"] = StaticText(_("Preview"))
+        self["key_blue"] = StaticText(_("Settings"))
+        self["status"] = Label(_("Ready. First scan can take a while on very large settings."))
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "DirectionActions"], {
             "cancel": self.close, "red": self.close, "ok": self.runSelected,
             "green": self.clean, "yellow": self.preview, "blue": self.openSettings,
@@ -934,7 +936,7 @@ class KidsSafeMain(Screen):
     def invalidateScan(self, *args):
         self.last_scan = None
         self.last_scan_fingerprint = None
-        self["status"].setText("Settings changed. A new scan will be required.")
+        self["status"].setText(_("Settings changed. A new scan will be required."))
 
     def runSelected(self):
         index = self["list"].getSelectedIndex()
@@ -956,7 +958,7 @@ class KidsSafeMain(Screen):
         self.session.openWithCallback(callback, MessageBox, self.SCAN_WARNING, MessageBox.TYPE_YESNO, default=True)
 
     def doScan(self):
-        self["status"].setText("Scanning... please wait. Do not restart Enigma2.")
+        self["status"].setText(_("Scanning... please wait. Do not restart Enigma2."))
         result = scan_everything()
         self.last_scan = result
         self.last_scan_fingerprint = self.settingsFingerprint()
@@ -964,8 +966,8 @@ class KidsSafeMain(Screen):
 
     def preview(self):
         if self.cacheIsValid():
-            self["status"].setText("Cached preview ready. Clean can reuse it without another full scan.")
-            self.session.open(KidsSafeResults, format_scan(self.last_scan, "Preview"), "Preview - cached result")
+            self["status"].setText(_("Cached preview ready. Clean can reuse it without another full scan."))
+            self.session.open(KidsSafeResults, format_scan(self.last_scan, _("Preview")), _("Preview - cached result"))
             return
         self.askScanWarning(self.previewConfirmed)
 
@@ -974,16 +976,16 @@ class KidsSafeMain(Screen):
             return
         try:
             result = self.doScan()
-            self["status"].setText("Preview complete. GREEN Clean will reuse this scan.")
-            self.session.open(KidsSafeResults, format_scan(result, "Preview"), "Preview scan complete")
+            self["status"].setText(_("Preview complete. GREEN Clean will reuse this scan."))
+            self.session.open(KidsSafeResults, format_scan(result, _("Preview")), _("Preview scan complete"))
         except Exception as err:
             log("Preview failed: %s" % err)
-            self["status"].setText("Preview failed.")
-            self.session.open(MessageBox, "Preview failed:\n%s" % err, MessageBox.TYPE_ERROR)
+            self["status"].setText(_("Preview failed."))
+            self.session.open(MessageBox, _("Preview failed:\n%s") % err, MessageBox.TYPE_ERROR)
 
     def clean(self):
         if self.cacheIsValid():
-            self["status"].setText("Using cached Preview - no second full scan needed.")
+            self["status"].setText(_("Using cached Preview - no second full scan needed."))
             self.confirmCleanFromResult(self.last_scan)
             return
         self.askScanWarning(self.cleanScanConfirmed)
@@ -995,15 +997,15 @@ class KidsSafeMain(Screen):
             result = self.doScan()
             self.confirmCleanFromResult(result)
         except Exception as err:
-            self["status"].setText("Scan failed.")
-            self.session.open(MessageBox, "Scan failed:\n%s" % err, MessageBox.TYPE_ERROR)
+            self["status"].setText(_("Scan failed."))
+            self.session.open(MessageBox, _("Scan failed:\n%s") % err, MessageBox.TYPE_ERROR)
 
     def confirmCleanFromResult(self, result):
         total = len(result["bouquets"]) + len(result.get("sections", [])) + len(result["channels"]) + len(result["global_services"])
         if total == 0:
-            self.session.open(KidsSafeResults, format_scan(result, "Clean"), "Nothing to clean")
+            self.session.open(KidsSafeResults, format_scan(result, _("Clean")), _("Nothing to clean"))
             return
-        message = (
+        message = _(
             "Found:\n%d adult bouquet(s)\n%d adult section(s) to remove COMPLETELY\n"
             "%d adult channel entries outside sections\n%d matching services in ALL\n\n"
             "Clean everything matched?"
@@ -1016,56 +1018,58 @@ class KidsSafeMain(Screen):
             return
         backup = None
         try:
-            self["status"].setText("Cleaning... please wait.")
+            self["status"].setText(_("Cleaning... please wait."))
             if config.plugins.kidssafebouquets.make_backup.value:
                 backup = create_backup()
             rb, rs, rss, rc, hidden, protected, failures = apply_clean(result)
             lines = [
-                "Cleaning completed.", "",
-                "Bouquets removed: %d" % rb,
-                "Adult sections removed: %d" % rs,
-                "Services removed with those sections: %d" % rss,
-                "Individual bouquet channel entries removed: %d" % rc,
-                "Services hidden from ALL/Satellites/Providers: %d" % hidden,
-                "Added to native parental blacklist: %d" % protected,
+                _("Cleaning completed."), "",
+                _("Bouquets removed: %d") % rb,
+                _("Adult sections removed: %d") % rs,
+                _("Services removed with those sections: %d") % rss,
+                _("Individual bouquet channel entries removed: %d") % rc,
+                _("Services hidden from ALL/Satellites/Providers: %d") % hidden,
+                _("Added to native parental blacklist: %d") % protected,
             ]
             if backup:
-                lines.extend(["", "Backup:", backup])
+                lines.extend(["", _("Backup:"), backup])
             if failures:
-                lines.extend(["", "Warnings:"] + ["  - %s" % x for x in failures])
-            lines.extend(["", "lamedb was not directly edited."])
+                lines.extend(["", _("Warnings:")] + ["  - %s" % x for x in failures])
+            lines.extend(["", _("lamedb was not directly edited.")])
             self.last_scan = None
             self.last_scan_fingerprint = None
-            self["status"].setText("Cleaning complete.")
-            self.session.open(KidsSafeResults, "\n".join(lines), "Cleaning complete")
+            self["status"].setText(_("Cleaning complete."))
+            self.session.open(KidsSafeResults, "\n".join(lines), _("Cleaning complete"))
         except Exception as err:
             log("Clean failed: %s" % err)
-            self["status"].setText("Cleaning failed.")
-            self.session.open(MessageBox, "Cleaning failed:\n%s" % err, MessageBox.TYPE_ERROR)
+            self["status"].setText(_("Cleaning failed."))
+            self.session.open(MessageBox, _("Cleaning failed:\n%s") % err, MessageBox.TYPE_ERROR)
 
     def openSettings(self):
         self.session.openWithCallback(self.invalidateScan, KidsSafeSettings)
 
     def showAbout(self):
-        text = (
+        text = _(
             "KidsSafe Bouquets v%s\n\n"
-            "Aggressive family-safety cleaner for Enigma2 / OpenATV / OpenBH.\n\n"
-            "- Removes complete Adult/Erotic/XXX categories and every channel inside them.\n"
-            "- Uses multilingual category detection.\n"
-            "- Removes individually matched adult channels.\n"
-            "- Can hide matches from All / Satellites / Providers.\n"
-            "- Backup and restore are included.\n\n"
-            "Custom blacklist/whitelist editors were intentionally removed in v1.5 for a simpler and more stable interface.\n\n"
-            "Plugin done by dorinelu with a lot of help from GBT5.6 SOL"
+            "Family-safety cleaner for Enigma2.\n\n"
+            "• Removes complete Adult / Erotic / XXX categories and every channel inside them.\n"
+            "• Uses multilingual category detection.\n"
+            "• Removes individually matched adult channels.\n"
+            "• Can hide matches from All / Satellites / Providers.\n"
+            "• Backup and restore are included.\n\n"
+            "Created by Dorinelu\n"
+            "with AI assistance by ChatGPT\n\n"
+            "DG Labs\n"
+            "Plugins • Tools • Solutions"
         ) % PLUGIN_VERSION
-        self.session.open(KidsSafeResults, text, "About KidsSafe Bouquets")
+        self.session.open(KidsSafeResults, text, _("About KidsSafe Bouquets"))
 
     def restoreLatest(self):
         backup = latest_backup()
         if not backup:
-            self.session.open(MessageBox, "No KidsSafe backup found.", MessageBox.TYPE_INFO)
+            self.session.open(MessageBox, _("No KidsSafe backup found."), MessageBox.TYPE_INFO)
             return
-        msg = "Restore this backup?\n\n%s" % backup
+        msg = _("Restore this backup?\n\n%s") % backup
         self.session.openWithCallback(lambda answer: self.restoreConfirmed(answer, backup), MessageBox, msg, MessageBox.TYPE_YESNO)
 
     def restoreConfirmed(self, answer, backup):
@@ -1074,9 +1078,9 @@ class KidsSafeMain(Screen):
         try:
             restore_backup(backup)
             self.invalidateScan()
-            self.session.open(MessageBox, "Backup restored. Hidden-service flags were refreshed.", MessageBox.TYPE_INFO)
+            self.session.open(MessageBox, _("Backup restored. Hidden-service flags were refreshed."), MessageBox.TYPE_INFO)
         except Exception as err:
-            self.session.open(MessageBox, "Restore failed:\n%s" % err, MessageBox.TYPE_ERROR)
+            self.session.open(MessageBox, _("Restore failed:\n%s") % err, MessageBox.TYPE_ERROR)
 
 
 def session_start(reason, **kwargs):
@@ -1096,7 +1100,7 @@ def Plugins(**kwargs):
     return [
         PluginDescriptor(
             name=PLUGIN_NAME,
-            description="Simple family-safety cleaner for adult bouquets, sections and channels",
+            description=_("Simple family-safety cleaner for adult bouquets, sections and channels"),
             where=PluginDescriptor.WHERE_PLUGINMENU,
             icon="plugin.png",
             needsRestart=False,
