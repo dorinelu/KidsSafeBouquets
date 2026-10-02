@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.6
+
+- Added gettext-based multilingual user interface.
+- Initial interface languages: EN, DE, RO, IT, ES, FR, NL, PL, PT, TR, RU and AR.
+- Added English fallback when the receiver language is not available.
+- Updated About screen with DG Labs branding and credits.
+- Updated buttons, settings, status messages and dialogs to use translatable strings.
+- Filtering logic and Strict Kids Mode remain unchanged.
+
 ## v1.5
 
 - Removed the custom blacklist/whitelist editors for stability and simplicity.
