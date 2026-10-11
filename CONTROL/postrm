@@ -1,0 +1,12 @@
+#!/bin/sh
+# dpkg/opkg also call postrm with "upgrade" after the new files are unpacked;
+# only clean up on a real removal.
+case "$1" in
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        exit 0
+        ;;
+esac
+PLUGIN_DIR=/usr/lib/enigma2/python/Plugins/Extensions/KidsSafeBouquets
+[ -d /usr/lib64/enigma2/python/Plugins/Extensions/KidsSafeBouquets ] && PLUGIN_DIR=/usr/lib64/enigma2/python/Plugins/Extensions/KidsSafeBouquets
+rm -rf "$PLUGIN_DIR" 2>/dev/null || true
+exit 0

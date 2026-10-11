@@ -1,0 +1,108 @@
+name: Build and release ipk
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'CONTROL/control'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read package metadata
+        id: meta
+        run: |
+          field() { awk -F': ' -v k="$1" '$1 == k {print $2; exit}' CONTROL/control | tr -d '\r'; }
+          PKG=$(field Package)
+          VER=$(field Version)
+          ARCH=$(field Architecture)
+          [ -n "$PKG" ] && [ -n "$VER" ] && [ -n "$ARCH" ] || { echo "::error::CONTROL/control is missing Package/Version/Architecture"; exit 1; }
+          # The in-plugin update check compares against PLUGIN_VERSION, so both must match.
+          PY_VER=$(sed -n 's/^PLUGIN_VERSION = "\([^"]*\)".*/\1/p' usr/lib/enigma2/python/Plugins/Extensions/KidsSafeBouquets/plugin.py)
+          if [ "$PY_VER" != "${VER%-r*}" ]; then
+            echo "::error::PLUGIN_VERSION in plugin.py ($PY_VER) does not match CONTROL/control ($VER)"
+            exit 1
+          fi
+          # 1.7-r0 -> v1.7, 1.7-r1 -> v1.7-r1
+          TAG="v${VER%-r0}"
+          {
+            echo "pkg=$PKG"
+            echo "ver=$VER"
+            echo "arch=$ARCH"
+            echo "tag=$TAG"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.meta.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Release ${{ steps.meta.outputs.tag }} already exists, nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build ipk and deb
+        if: steps.check.outputs.skip != 'true'
+        env:
+          PKG: ${{ steps.meta.outputs.pkg }}
+          VER: ${{ steps.meta.outputs.ver }}
+          ARCH: ${{ steps.meta.outputs.arch }}
+        run: |
+          set -euo pipefail
+          WORK=$(mktemp -d)
+          mkdir -p dist "$WORK/control"
+          echo "2.0" > "$WORK/debian-binary"
+          cp -r CONTROL/. "$WORK/control/"
+          chmod 644 "$WORK/control/control"
+          for script in preinst postinst prerm postrm; do
+            [ -f "$WORK/control/$script" ] && chmod 755 "$WORK/control/$script"
+          done
+          find usr -name '__pycache__' -type d -prune -exec rm -rf {} +
+          find usr -name '*.py[co]' -delete
+
+          build() {
+            ext=$1; comp=$2; flag=$3
+            out="dist/${PKG}_${VER}_${ARCH}.${ext}"
+            tar --numeric-owner --owner=0 --group=0 "$flag" -C "$WORK/control" -cf "$WORK/control.tar.$comp" .
+            tar --numeric-owner --owner=0 --group=0 "$flag" -cf "$WORK/data.tar.$comp" usr
+            rm -f "$out"
+            ar rc "$out" "$WORK/debian-binary" "$WORK/control.tar.$comp" "$WORK/data.tar.$comp"
+            rm -f "$WORK/control.tar.$comp" "$WORK/data.tar.$comp"
+            # Fixed name for .../releases/latest/download/<name> links.
+            cp "$out" "dist/${PKG}_${ARCH}.${ext}"
+          }
+          build ipk gz -z
+          build deb xz -J
+          ls -la dist
+
+      - name: Release notes
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          VER_SHORT="${{ steps.meta.outputs.tag }}"
+          awk -v h="## ${VER_SHORT}" '
+            $0 == h {found=1; next}
+            found && /^## / {exit}
+            found {print}
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "KidsSafe Bouquets ${VER_SHORT}" > notes.md
+          cat notes.md
+
+      - name: Create release
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.meta.outputs.tag }}" dist/* \
+            --target "${{ github.sha }}" \
+            --title "KidsSafe Bouquets ${{ steps.meta.outputs.tag }}" \
+            --notes-file notes.md \
+            --latest

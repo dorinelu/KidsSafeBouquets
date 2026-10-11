@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.7
+
+- Added `installer.sh` for LinuxSat Panel and one-line installation (OE and DreamOS, `/usr/lib` and `/usr/lib64`).
+- Fixed: untitled spacer markers inside an adult section no longer end the section early, leaving its remaining channels in place.
+- Fixed: numbered and hidden markers (for example `1:320`) are now recognised as section headers.
+- Fixed: Clean re-detects sections on the current file content instead of reusing line numbers from an earlier scan.
+- Fixed: bouquet files are rewritten byte-for-byte (CRLF line endings and non-UTF-8 names are preserved).
+- Fixed: Restore of a backup taken before Strict Kids Mode now un-hides the services again and reloads the parental-control lists.
+- Fixed: Latin rule terms must start a word, so names such as "Sussex TV" or "Illustrated" are no longer removed by mistake.
+- Fixed: Python 2 text normalisation for non-ASCII channel and category names.
+- Fixed: the status text is shown before long scans and cleaning start.
+- Fixed: skin images are loaded from the actual plugin path (works on `/usr/lib64` images).
+- Added the missing `plugin.png`, `logo.png` and `main_bg.png` graphics.
+- Removed unused imports (`getPrevAsciiCode` is missing on some images).
+- Added IPK `postrm` script.
+- Added update check: when the plugin opens it checks for a newer release and offers to install it (can be disabled in Settings, or run from the menu with "Check for updates").
+
 ## v1.6
 
 - Added gettext-based multilingual user interface.
