@@ -143,7 +143,7 @@ Before cleaning, the plugin can create a backup under:
 
 The last backup can be restored from the plugin menu.
 
-KidsSafe Bouquets does not directly modify `lamedb`.
+KidsSafe Bouquets does not directly rewrite the `lamedb` file. However, **Strict Kids Mode** applies Enigma2 hidden-service flags through the DVB database. Those flags may persist after the plugin is uninstalled. Before uninstalling KidsSafe Bouquets, use **Restore last backup** to remove the hidden-service state and restore the previous channel configuration.
 
 ## Feedback
 
@@ -183,3 +183,10 @@ The About screen now uses the same project identity as EPG Translator NG:
 with AI assistance by ChatGPT
 
 **DG Labs — Plugins • Tools • Solutions**
+
+
+## License
+
+KidsSafe Bouquets is licensed under the **GNU General Public License v2.0 only (GPL-2.0-only)**. See the [LICENSE](LICENSE) file for the complete license text.
+
+Copyright © 2026 Dorinelu / DG Labs.
