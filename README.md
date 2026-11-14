@@ -143,7 +143,13 @@ Before cleaning, the plugin can create a backup under:
 
 The last backup can be restored from the plugin menu.
 
+**Important for Strict Kids Mode:** hidden-service flags can persist in Enigma2's service database after the plugin is removed. Before uninstalling the plugin, use **Restore last backup** to restore the previous state.
+
 KidsSafe Bouquets does not directly modify `lamedb`.
+
+## License
+
+KidsSafe Bouquets is licensed under the **GNU General Public License v2.0 (GPL-2.0)**. See the `LICENSE` file for the full license text.
 
 ## Feedback
 
